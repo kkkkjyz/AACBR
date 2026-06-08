@@ -64,7 +64,7 @@ class Case:
     return self._hash
   @cache
   def __le__(self, other):
-    return self.factors < other.factors or (self.factors == other.factors and _data_leq(self.data, other.data))
+    return self.factors <= other.factors and (self.factors != other.factors or _data_leq(self.data, other.data))
     # return self.factors < other.factors or self.factors == other.factors
   def __lt__(self, other):
     return self <= other and self.factors != other.factors
