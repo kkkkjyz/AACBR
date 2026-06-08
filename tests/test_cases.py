@@ -71,6 +71,24 @@ def test_order_notation():
   assert case2 >= case2b and case2b >= case2
   assert not case2 == case2b
   assert case2 != case2b
+
+def test_data_partial_order_with_date():
+  older = Case('older', {'a'}, data={'site_area': 10, 'date': (2024, 11, 5)}, outcome=1)
+  newer = Case('newer', {'a'}, data={'site_area': 10, 'date': (2025, 11, 5)}, outcome=1)
+  larger_newer = Case('larger_newer', {'a'}, data={'site_area': 20, 'date': (2025, 11, 6)}, outcome=1)
+  earlier_year_larger_month = Case('earlier_year_larger_month', {'a'}, data={'site_area': 10, 'date': (2024, 12, 31)}, outcome=1)
+  next_year = Case('next_year', {'a'}, data={'site_area': 10, 'date': (2025, 1, 1)}, outcome=1)
+
+  assert older <= newer
+  assert older <= larger_newer
+  assert not newer <= older
+  assert earlier_year_larger_month <= next_year
+  assert older.data['date'] == (2024, 11, 5)
+
+def test_positional_outcome_backwards_compatibility():
+  case = Case('1', {'a'}, 0)
+  assert case.outcome == 0
+  assert case.data is None
   
 def test_alternative_partial_order():  
   class OrderedPair:

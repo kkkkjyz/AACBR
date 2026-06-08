@@ -3,6 +3,23 @@ import json
 from .variables import *
 from functools import cache
 from collections.abc import Hashable
+from datetime import datetime
+from numbers import Number
+
+def _value_leq(left, right):
+  if left is None:
+    return True
+  if right is None:
+    return False
+  if (isinstance(left, Number) and isinstance(right, Number)) or (isinstance(left, tuple) and isinstance(right, tuple)):
+    return left <= right
+  return left == right
+
+def _data_leq(left_data, right_data):
+  left_data = left_data or {}
+  right_data = right_data or {}
+  keys = set(left_data) | set(right_data)
+  return all(_value_leq(left_data.get(key), right_data.get(key)) for key in keys)
 
 class Case:
   '''Defines a case to comprise id, factors, outcome, 
@@ -14,8 +31,11 @@ class Case:
   The type of `factors` should also be hashable. In case it is a set,
   frozenset is used instead for hashing.'''
   
-  def __init__(self, id, factors, outcome=None):
+  def __init__(self, id, factors, data=None, outcome=None):
     self.id = id
+    if data is not None and not isinstance(data, dict):
+      outcome = data if outcome is None else outcome
+      data = None
     if type(factors) == set:
       self.factors = frozenset(factors)
     elif not isinstance(factors, Hashable):
@@ -23,23 +43,28 @@ class Case:
     else:
       self.factors = factors
     self.outcome = outcome
-    self._hash = hash((self.id, self.factors, self.outcome))
+    self.data = data
+    self._data_key = json.dumps(self.data, sort_keys=True, default=str)
+    self._hash = hash((self.id, self.factors, self.outcome, self._data_key))
   def __str__(self):
-    return f'Case("id": {self.id}, "factors": {self.factors}, "outcome": {self.outcome})'
+    return f'Case("id": {self.id}, "factors": {self.factors}, "data": {self.data}, "outcome": {self.outcome})'
   def __repr__(self):
     # return f'Case("id": {self.id}, "factors": {self.factors}, "outcome": {self.outcome})'
     return self.__str__()
   def __eq__(self, other):
     if not isinstance(other, Case):
       return NotImplemented
-    # raise(Exception(f"Trying equality for {self} and {other}.\nHash for self is: {hash(self)}.\nHash for other is: {hash(other)}"))
-    # return all([self.id == other.id, self.factors == other.factors, self.outcome == other.outcome]) # slow
-    return self._hash == other._hash
+    return (
+      self.id == other.id
+      and self.factors == other.factors
+      and self.outcome == other.outcome
+      and self._data_key == other._data_key
+    )
   def __hash__(self):
     return self._hash
   @cache
   def __le__(self, other):
-    return self.factors <= other.factors
+    return self.factors < other.factors or (self.factors == other.factors and _data_leq(self.data, other.data))
     # return self.factors < other.factors or self.factors == other.factors
   def __lt__(self, other):
     return self <= other and self.factors != other.factors
@@ -65,15 +90,15 @@ def load_cases(file, nr_defaults=1) -> list:
     entries = json.load(json_file)
     for entry in entries:
       if entry['id'] == ID_DEFAULT:
-        default_case = Case(ID_DEFAULT, set(), OUTCOME_DEFAULT)
+        default_case = Case(ID_DEFAULT, set(), data=entry.get('data'), outcome=entry.get('outcome', OUTCOME_DEFAULT))
         cases.insert(0, default_case)
         
         if nr_defaults == 2:
-          non_default_case = Case(ID_NON_DEFAULT, set(), OUTCOME_NON_DEFAULT, [], [], 0)
+          non_default_case = Case(ID_NON_DEFAULT, set(), outcome=OUTCOME_NON_DEFAULT)
           cases.insert(0, non_default_case)
       else:
         factors = entry['factors']
-        case = Case(entry['id'], set(factors), entry['outcome'])
+        case = Case(entry['id'], set(factors), data=entry.get('data'), outcome=entry.get('outcome'))
         cases.append(case)
   json_file.close()
 
